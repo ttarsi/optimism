@@ -12,7 +12,12 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
-import { StaticSender } from "./StaticSender.sol";
+
+contract StaticSender {
+    function send(OptimismPortal _portal) public {
+        _portal.donateETH{value: address(this).balance}();
+    }
+}
 
 contract SystemDictator is Ownable {
     struct L2OutputOracleConfig {
@@ -146,7 +151,7 @@ contract SystemDictator is Ownable {
             address(config.implStaticSender),
             abi.encodeCall(
                 StaticSender.send,
-                (address(config.proxyOptimismPortal))
+                (OptimismPortal(payable(config.proxyOptimismPortal)))
             )
         );
 
