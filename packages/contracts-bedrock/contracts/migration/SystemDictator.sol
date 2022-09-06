@@ -19,11 +19,23 @@ contract StaticSender {
     }
 }
 
+contract SlotDeleter {
+    function del(bytes32 _slot) public {
+        assembly {
+            sstore(_slot, 0)
+        }
+    }
+}
+
 contract SystemDictator is Ownable {
+    struct SlotDeletionData {
+        address target;
+        bytes32[] slots;
+    }
+
     struct GeneralConfig {
         address owner;
         address multisig;
-        bytes32[] zeroslots;
     }
 
     struct OldContractConfig {
@@ -46,6 +58,7 @@ contract SystemDictator is Ownable {
         L2OutputOracle implL2OutputOracle;
         OptimismPortal implOptimismPortal;
         StaticSender implStaticSender;
+        SlotDeleter implSlotDeleter;
     }
 
     struct L2OutputOracleConfig {
@@ -55,6 +68,7 @@ contract SystemDictator is Ownable {
         address owner;
     }
 
+    SlotDeletionData[] public sdd;
     GeneralConfig public gConfig;
     OldContractConfig public oConfig;
     NewContractConfig public nConfig;
@@ -74,6 +88,19 @@ contract SystemDictator is Ownable {
         iConfig = _iConfig;
         lConfig = _lConfig;
         transferOwnership(_gConfig.owner);
+    }
+
+    /**
+     * @notice Allows the owner to add new slot deletion data. Doesn't fit in the constructor
+     *         because of stack too deep. We may need to delete a significant number of storage
+     *         slots, so not necessarily a bad thing that we have a separate function.
+     */
+    function addSlotDeletionData(
+        SlotDeletionData[] memory _sdd
+    ) public onlyOwner {
+        for (uint256 i = 0; i < _sdd.length; i++) {
+            sdd.push(_sdd[i]);
+        }
     }
 
     function step1() public onlyOwner {
@@ -108,11 +135,6 @@ contract SystemDictator is Ownable {
     }
 
     function step2() public onlyOwner {
-        // TODO: Zero out storage by upgrading contracts to temporary impls
-        for (uint256 i = 0; i < gConfig.zeroslots.length; i++) {}
-    }
-
-    function step3() public onlyOwner {
         // Configure ProxyAdmin
         oConfig.proxyAdmin.setAddressManager(oConfig.addressManager);
         oConfig.proxyAdmin.setProxyType(
@@ -133,6 +155,39 @@ contract SystemDictator is Ownable {
 
         // Transfer ownership of L1StandardBridge to ProxyAdmin
         L1ChugSplashProxy(payable(oConfig.l1StandardBridge)).setOwner(address(oConfig.proxyAdmin));
+    }
+
+    function step3() public onlyOwner {
+        for (uint256 i = 0; i < sdd.length; i++) {
+            SlotDeletionData memory data = sdd[i];
+
+            // If slot was deleted in a previous run, ignore.
+            if (data.target == address(0)) {
+                continue;
+            }
+
+            // Grab the original implementation address.
+            address originalImpl = oConfig.proxyAdmin.getProxyImplementation(
+                payable(data.target)
+            );
+
+            // Temporarily upgrade to SlotDeleter.
+            oConfig.proxyAdmin.upgrade(
+                payable(data.target),
+                address(iConfig.implSlotDeleter)
+            );
+
+            // Remove every slot that we need to delete.
+            for (uint256 j = 0; j < data.slots.length; j++) {
+                SlotDeleter(data.target).del(data.slots[j]);
+            }
+
+            // Revert back to the original implementation.
+            oConfig.proxyAdmin.upgrade(payable(data.target), originalImpl);
+
+            // Mark the slot as complete.
+            sdd[i].target = address(0);
+        }
     }
 
     function step4() public onlyOwner {
