@@ -13,7 +13,7 @@ import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 
-contract StaticSender {
+contract PortalSender {
     function send(OptimismPortal _portal) public {
         _portal.donateETH{value: address(this).balance}();
     }
@@ -57,7 +57,7 @@ contract SystemDictator is Ownable {
         OptimismMintableERC20 implOptimismMintableERC20Factory;
         L2OutputOracle implL2OutputOracle;
         OptimismPortal implOptimismPortal;
-        StaticSender implStaticSender;
+        PortalSender implPortalSender;
         SlotDeleter implSlotDeleter;
     }
 
@@ -222,9 +222,9 @@ contract SystemDictator is Ownable {
         // Transfer ETH from L1StandardBridge to OptimismPortal
         oConfig.proxyAdmin.upgradeAndCall(
             payable(oConfig.l1StandardBridge),
-            address(iConfig.implStaticSender),
+            address(iConfig.implPortalSender),
             abi.encodeCall(
-                StaticSender.send,
+                PortalSender.send,
                 (OptimismPortal(payable(nConfig.proxyOptimismPortal)))
             )
         );
