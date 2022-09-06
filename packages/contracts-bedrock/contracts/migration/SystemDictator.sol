@@ -20,6 +20,34 @@ contract StaticSender {
 }
 
 contract SystemDictator is Ownable {
+    struct GeneralConfig {
+        address owner;
+        address multisig;
+        bytes32[] zeroslots;
+    }
+
+    struct OldContractConfig {
+        L1CrossDomainMessenger l1CrossDomainMessenger;
+        L1StandardBridge l1StandardBridge;
+        AddressManager addressManager;
+        ProxyAdmin proxyAdmin;
+    }
+
+    struct NewContractConfig {
+        Proxy proxyOptimismMintableERC20Factory;
+        Proxy proxyL2OutputOracle;
+        Proxy proxyOptimismPortal;
+    }
+
+    struct ImplementationConfig {
+        L1CrossDomainMessenger implL1CrossDomainMessenger;
+        L1StandardBridge implL1StandardBridge;
+        OptimismMintableERC20 implOptimismMintableERC20Factory;
+        L2OutputOracle implL2OutputOracle;
+        OptimismPortal implOptimismPortal;
+        StaticSender implStaticSender;
+    }
+
     struct L2OutputOracleConfig {
         bytes32 genesisL2Output;
         uint256 startingBlockNumber;
@@ -27,39 +55,30 @@ contract SystemDictator is Ownable {
         address owner;
     }
 
-    struct Config {
-        address owner;
-        address multisig;
-        bytes32[] zeroslots;
-        // Existing contracts
-        L1CrossDomainMessenger l1CrossDomainMessenger;
-        L1StandardBridge l1StandardBridge;
-        AddressManager addressManager;
-        ProxyAdmin proxyAdmin;
-        // New proxies
-        Proxy proxyOptimismMintableERC20Factory;
-        Proxy proxyL2OutputOracle;
-        Proxy proxyOptimismPortal;
-        // New implementations
-        L1CrossDomainMessenger implL1CrossDomainMessenger;
-        L1StandardBridge implL1StandardBridge;
-        OptimismMintableERC20 implOptimismMintableERC20Factory;
-        L2OutputOracle implL2OutputOracle;
-        OptimismPortal implOptimismPortal;
-        StaticSender implStaticSender;
-        // Initialization config
-        L2OutputOracleConfig l2OutputOracleConfig;
-    }
+    GeneralConfig public gConfig;
+    OldContractConfig public oConfig;
+    NewContractConfig public nConfig;
+    ImplementationConfig public iConfig;
+    L2OutputOracleConfig public lConfig;
 
-    Config public config;
-
-    constructor(Config memory _config) Ownable() {
-        transferOwnership(_config.owner);
+    constructor(
+        GeneralConfig memory _gConfig,
+        OldContractConfig memory _oConfig,
+        NewContractConfig memory _nConfig,
+        ImplementationConfig memory _iConfig,
+        L2OutputOracleConfig memory _lConfig
+    ) Ownable() {
+        gConfig = _gConfig;
+        oConfig = _oConfig;
+        nConfig = _nConfig;
+        iConfig = _iConfig;
+        lConfig = _lConfig;
+        transferOwnership(_gConfig.owner);
     }
 
     function step1() public onlyOwner {
         // Pause the L1CrossDomainMessenger
-        config.l1CrossDomainMessenger.pause();
+        oConfig.l1CrossDomainMessenger.pause();
 
         // Remove all dead addresses from the AddressManager
         string[18] memory deads = [
@@ -84,105 +103,105 @@ contract SystemDictator is Ownable {
         ];
 
         for (uint256 i = 0; i < deads.length; i++) {
-            config.addressManager.setAddress(deads[i], address(0));
+            oConfig.addressManager.setAddress(deads[i], address(0));
         }
     }
 
     function step2() public onlyOwner {
         // TODO: Zero out storage by upgrading contracts to temporary impls
-        for (uint256 i = 0; i < config.zeroslots.length; i++) {}
+        for (uint256 i = 0; i < gConfig.zeroslots.length; i++) {}
     }
 
     function step3() public onlyOwner {
         // Configure ProxyAdmin
-        config.proxyAdmin.setAddressManager(config.addressManager);
-        config.proxyAdmin.setProxyType(
-            address(config.l1CrossDomainMessenger),
+        oConfig.proxyAdmin.setAddressManager(oConfig.addressManager);
+        oConfig.proxyAdmin.setProxyType(
+            address(oConfig.l1CrossDomainMessenger),
             ProxyAdmin.ProxyType.RESOLVED
         );
-        config.proxyAdmin.setProxyType(
-            address(config.l1StandardBridge),
+        oConfig.proxyAdmin.setProxyType(
+            address(oConfig.l1StandardBridge),
             ProxyAdmin.ProxyType.CHUGSPLASH
         );
-        config.proxyAdmin.setImplementationName(
-            address(config.l1CrossDomainMessenger),
+        oConfig.proxyAdmin.setImplementationName(
+            address(oConfig.l1CrossDomainMessenger),
             "OVM_L1CrossDomainMessenger"
         );
 
         // Transfer ownership of AddressManager to ProxyAdmin
-        config.addressManager.transferOwnership(address(config.proxyAdmin));
+        oConfig.addressManager.transferOwnership(address(oConfig.proxyAdmin));
 
         // Transfer ownership of L1StandardBridge to ProxyAdmin
-        L1ChugSplashProxy(payable(config.l1StandardBridge)).setOwner(address(config.proxyAdmin));
+        L1ChugSplashProxy(payable(oConfig.l1StandardBridge)).setOwner(address(oConfig.proxyAdmin));
     }
 
     function step4() public onlyOwner {
         // Upgrade the OptimismMintableERC20Factory
-        config.proxyAdmin.upgrade(
-            payable(config.proxyOptimismMintableERC20Factory),
-            address(config.implOptimismMintableERC20Factory)
+        oConfig.proxyAdmin.upgrade(
+            payable(nConfig.proxyOptimismMintableERC20Factory),
+            address(iConfig.implOptimismMintableERC20Factory)
         );
 
         // Upgrade the L2OutputOracle and call initialize()
-        config.proxyAdmin.upgradeAndCall(
-            payable(config.proxyL2OutputOracle),
-            address(config.implL2OutputOracle),
+        oConfig.proxyAdmin.upgradeAndCall(
+            payable(nConfig.proxyL2OutputOracle),
+            address(iConfig.implL2OutputOracle),
             abi.encodeCall(
                 L2OutputOracle.initialize,
                 (
-                    config.l2OutputOracleConfig.genesisL2Output,
-                    config.l2OutputOracleConfig.startingBlockNumber,
-                    config.l2OutputOracleConfig.proposer,
-                    config.l2OutputOracleConfig.owner
+                    lConfig.genesisL2Output,
+                    lConfig.startingBlockNumber,
+                    lConfig.proposer,
+                    lConfig.owner
                 )
             )
         );
 
         // Upgrade the OptimismPortal and call initialize()
-        config.proxyAdmin.upgradeAndCall(
-            payable(config.proxyOptimismPortal),
-            address(config.implOptimismPortal),
+        oConfig.proxyAdmin.upgradeAndCall(
+            payable(nConfig.proxyOptimismPortal),
+            address(iConfig.implOptimismPortal),
             abi.encodeCall(OptimismPortal.initialize, ())
         );
 
         // Transfer ETH from L1StandardBridge to OptimismPortal
-        config.proxyAdmin.upgradeAndCall(
-            payable(config.l1StandardBridge),
-            address(config.implStaticSender),
+        oConfig.proxyAdmin.upgradeAndCall(
+            payable(oConfig.l1StandardBridge),
+            address(iConfig.implStaticSender),
             abi.encodeCall(
                 StaticSender.send,
-                (OptimismPortal(payable(config.proxyOptimismPortal)))
+                (OptimismPortal(payable(nConfig.proxyOptimismPortal)))
             )
         );
 
         // Upgrade the L1StandardBridge and call initialize()
-        config.proxyAdmin.upgradeAndCall(
-            payable(config.l1StandardBridge),
-            address(config.implL1StandardBridge),
+        oConfig.proxyAdmin.upgradeAndCall(
+            payable(oConfig.l1StandardBridge),
+            address(iConfig.implL1StandardBridge),
             abi.encodeCall(
                 L1StandardBridge.initialize,
-                (payable(address(config.l1CrossDomainMessenger)))
+                (payable(address(oConfig.l1CrossDomainMessenger)))
             )
         );
 
         // Upgrade the L1CrossDomainMessenger and call initialize()
-        config.proxyAdmin.upgradeAndCall(
-            payable(address(config.l1CrossDomainMessenger)),
-            address(config.implL1CrossDomainMessenger),
+        oConfig.proxyAdmin.upgradeAndCall(
+            payable(address(oConfig.l1CrossDomainMessenger)),
+            address(iConfig.implL1CrossDomainMessenger),
             abi.encodeCall(L1CrossDomainMessenger.initialize, ())
         );
     }
 
     function step5() public onlyOwner {
         // Unpause the L1CrossDomainMessenger
-        config.l1CrossDomainMessenger.unpause();
+        oConfig.l1CrossDomainMessenger.unpause();
     }
 
     function step6() public onlyOwner {
         // Transfer ownership of the L1CrossDomainMessenger to multisig
-        config.l1CrossDomainMessenger.transferOwnership(address(config.multisig));
+        oConfig.l1CrossDomainMessenger.transferOwnership(address(gConfig.multisig));
 
         // Transfer ownership of the ProxyAdmin to multisig
-        config.proxyAdmin.setOwner(address(config.multisig));
+        oConfig.proxyAdmin.setOwner(address(gConfig.multisig));
     }
 }
