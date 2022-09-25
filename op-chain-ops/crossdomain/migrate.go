@@ -2,6 +2,7 @@ package crossdomain
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -13,8 +14,7 @@ import (
 
 var (
 	abiTrue                      = common.Hash{31: 0x01}
-	abiFalse                     = common.Hash{}
-	errLegacyStorageSlotNotFound = errors.New("")
+	errLegacyStorageSlotNotFound = errors.New("cannot find storage slot")
 )
 
 // This takes a state db and a list of withdrawals
@@ -25,11 +25,10 @@ func MigrateWithdrawals(withdrawals []*PendingWithdrawal, db vm.StateDB) error {
 			return err
 		}
 
-		legacyValue := db.GetState(predeploys.L2ToL1MessagePasserAddr, legacySlot)
+		legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
 		if legacyValue != abiTrue {
-			return errLegacyStorageSlotNotFound
+			return fmt.Errorf("%w: %s", errLegacyStorageSlotNotFound, legacyValue)
 		}
-		db.SetState(predeploys.L2ToL1MessagePasserAddr, legacySlot, abiFalse)
 
 		withdrawal, err := MigrateWithdrawal(&legacy.LegacyWithdrawal)
 		if err != nil {
