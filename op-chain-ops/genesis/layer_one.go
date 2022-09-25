@@ -313,7 +313,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			common.Address{},
 		)
 	case "L1ERC721Bridge":
-		addr, _, _, err = bindings.DeployL1ERC721Bridge(
+		_, tx, _, err = bindings.DeployL1ERC721Bridge(
 			opts,
 			backend,
 			predeploys.DevL1CrossDomainMessengerAddr,
