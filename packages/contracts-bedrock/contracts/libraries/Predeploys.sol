@@ -41,7 +41,8 @@ library Predeploys {
     /**
      * @notice Address of the OptimismMintableERC721Factory predeploy.
      */
-    address internal constant OPTIMISM_MINTABLE_ERC721_FACTORY = 0x4200000000000000000000000000000000000018;
+    address internal constant OPTIMISM_MINTABLE_ERC721_FACTORY =
+        0x4200000000000000000000000000000000000018;
 
     /**
      * @notice Address of the L1Block predeploy.
