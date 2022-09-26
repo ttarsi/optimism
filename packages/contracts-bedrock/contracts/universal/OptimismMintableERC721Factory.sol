@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { OptimismMintableERC721 } from "./OptimismMintableERC721.sol";
 import { Semver } from "./Semver.sol";
 
@@ -11,7 +8,7 @@ import { Semver } from "./Semver.sol";
  * @title OptimismMintableERC721Factory
  * @notice Factory contract for creating OptimismMintableERC721 contracts.
  */
-contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
+contract OptimismMintableERC721Factory is Semver {
     /**
      * @notice Emitted whenever a new OptimismMintableERC721 contract is created.
      *
