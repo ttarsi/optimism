@@ -20,12 +20,12 @@ contract OptimismMintableERC721Factory is Semver {
     /**
      * @notice Address of the ERC721 bridge on this network.
      */
-    address public bridge;
+    address public immutable bridge;
 
     /**
      * @notice Chain ID for the remote network.
      */
-    uint256 public remoteChainId;
+    uint256 public immutable remoteChainId;
 
     /**
      * @notice Tracks addresses created by this factory.
@@ -38,15 +38,6 @@ contract OptimismMintableERC721Factory is Semver {
      * @param _bridge Address of the ERC721 bridge on this network.
      */
     constructor(address _bridge, uint256 _remoteChainId) Semver(1, 0, 0) {
-        initialize(_bridge, _remoteChainId);
-    }
-
-    /**
-     * @notice Initializes the factory.
-     *
-     * @param _bridge Address of the ERC721 bridge on this network.
-     */
-    function initialize(address _bridge, uint256 _remoteChainId) public initializer {
         require(
             _bridge != address(0),
             "OptimismMintableERC721Factory: bridge cannot be address(0)"
@@ -58,9 +49,6 @@ contract OptimismMintableERC721Factory is Semver {
 
         bridge = _bridge;
         remoteChainId = _remoteChainId;
-
-        // Initialize upgradable OZ contracts
-        __Ownable_init();
     }
 
     /**
