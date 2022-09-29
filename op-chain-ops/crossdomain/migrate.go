@@ -63,6 +63,7 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal) (*Withdrawal, error) {
 		if err != nil {
 			return nil, err
 		}
+		// TODO: can there be adversial input here?
 		data, err := abi.Unpack("finalizeETHWithdrawal", withdrawal.Data[4:])
 		if err != nil {
 			return nil, err
@@ -82,10 +83,11 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal) (*Withdrawal, error) {
 		withdrawal.Sender,
 		withdrawal.Target,
 		value,
+		new(big.Int),
 		withdrawal.Data,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode relayMessage: %w", err)
 	}
 
 	w := NewWithdrawal(
