@@ -5,12 +5,16 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,25 +38,6 @@ func setLegacyMessagePasser(db vm.StateDB, successful []common.Hash) error {
 		state.StorageValues{
 			"successfulMessages": msgs,
 		},
-		db,
-	)
-}
-
-func setOptimismPortal(db vm.StateDB) error {
-	// I think we want immutable impl here?
-	bytecode, err := bindings.GetDeployedBytecode("OptimismPortal")
-	if err != nil {
-		return err
-	}
-
-	db.CreateAccount(predeploys.DevOptimismPortalAddr)
-	db.SetCode(predeploys.DevOptimismPortalAddr, bytecode)
-
-	// TODO: what needs to be set in the optimism portal?
-	return state.SetStorage(
-		"OptimismPortal",
-		predeploys.DevOptimismPortalAddr,
-		state.StorageValues{},
 		db,
 	)
 }
@@ -90,12 +75,34 @@ func TestMigrateWithdrawal(t *testing.T) {
 // - Attempt to withdraw the PendingWithdrawals
 func TestMigrateWithdrawals(t *testing.T) {
 	// Create a L2 db
-	L2db := state.NewMemoryStateDB(nil)
+	//L2db := state.NewMemoryStateDB(nil)
 
-	// Set the test account and give it a large balance
-	L2db.CreateAccount(testAccount)
-	L2db.AddBalance(testAccount, big.NewInt(10000000000000000))
+	cfg := genesis.DeployConfig{
+		L2ChainID:                       666,
+		L1ChainID:                       667,
+		FundDevAccounts:                 true,
+		L2OutputOracleStartingTimestamp: -1,
+		L1GenesisBlockTimestamp:         1,
+		L2BlockTime:                     2,
+		L2OutputOracleProposer:          common.Address{19: 0xaa},
+		L2OutputOracleOwner:             common.Address{19: 0xbb},
+	}
 
-	err := setL2ToL1MessagePasser(L2db)
+	header := types.Header{
+		Number:  new(big.Int),
+		BaseFee: new(big.Int),
+	}
+	block := types.NewBlock(&header, nil, nil, nil, nil)
+
+	gL2, err := genesis.BuildL2DeveloperGenesis(&cfg, block, nil)
 	require.Nil(t, err)
+
+	db := state.NewMemoryStateDB(gL2)
+	require.NotNil(t, db)
+
+	// TODO: need to place some extra stuff in the genesis state now
+
+	gL1, err := genesis.BuildL1DeveloperGenesis(&cfg)
+	require.Nil(t, err)
+	require.NotNil(t, gL1)
 }
